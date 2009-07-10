@@ -1,0 +1,7 @@
+-*- outline -*-
+
+* 2009-07-09 - Initial project creation
+- Starting out with a crude Hadoop installation script.
+  We'll see where this goes from there.
+- Run "hadoop_install.sh 0.20.0" to pull down and install version 0.20.0
+  or let it default to the current stable version of 0.18.3
