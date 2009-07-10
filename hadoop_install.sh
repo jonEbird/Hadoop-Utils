@@ -1,32 +1,28 @@
 #!/bin/bash
 
+REL_DIR="$(dirname $0)"
+TMP="/tmp/.hadoopinstall$$_"
+
 # Dirty, little hackish script to get Hadoop installed and running...
 # Author: Jon Miller http://jonebird.com/ - jonEbird@gmail.com
 # 
 # See http://hadoop.apache.org/core/docs/r0.18.3/quickstart.html
 # 
 HADOOP_VERSION=${1:-0.18.3}
+HADOOP_INSTALL_DIR=${2:-${REL_DIR}}
+
 MEDIA="http://mirror.cloudera.com/apache/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz"
 
 #----------------------------------------------------------------------
-REL_DIR="$(dirname $0)"
-cd $REL_DIR; FULL_DIR=$(pwd); cd ~-
-
-TMP="/tmp/.hadoopinstall$$_"
-
-readlink_r() {
-    local symlink="$1"
-    local nlink="$(readlink $symlink)"
-    if [ -z "${nlink}" ]; then
-	echo $symlink
-	return 0
-    else
-	readlink_r $nlink
-    fi
-}
-
 # sanity checks...
-# check #1: Java version
+
+# check #1: basic usage
+if [ ! -d "${HADOOP_INSTALL_DIR}" ]; then
+    echo "Error: Specified install directory \"${HADOOP_INSTALL_DIR}\" does not exist. Please try again."
+    exit 1
+fi
+
+# check #2: Java version
 JAVA_VERSION=$(java -version 2>&1 | sed -n '/^java version/s/^java version "\([0-9]*\.[0-9]*\)\..*$/\1/p')
 if [ $(echo "$JAVA_VERSION >= 1.5" | bc -l) -eq 1 ]; then
     echo "Good: Your version of Java ${JAVA_VERSION} is new enough. JAVA_VERSION >= 1.5"
@@ -36,7 +32,7 @@ else
     exit 2
 fi
 
-# check #2: Can you ssh to yourself?
+# check #3: Can you ssh to yourself?
 # before going any further, if there is no .ssh/ dir setup, let's help out
 if [ ! -d ~/.ssh ]; then
     mkdir -m 0700 ~/.ssh
@@ -66,12 +62,22 @@ fi
 #----------------------------------------------------------------------
 # Okay, good to go I think... 
 
+readlink_r() {
+    local symlink="$1"
+    local nlink="$(readlink $symlink)"
+    if [ -z "${nlink}" ]; then
+	echo $symlink
+	return 0
+    else
+	readlink_r $nlink
+    fi
+}
 JAVA_HOME=$(readlink_r $(which java) | sed 's|/bin/java$||g')
 
-echo "Pulling down media and extracting to ${FULL_DIR}/hadoop-${HADOOP_VERSION}/. Probably a good idea to be patient."
-curl -s $MEDIA | tar -C ${REL_DIR} -xzf -
+echo "Pulling down media and extracting to ${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}/. Probably a good idea to be patient."
+curl -s $MEDIA | tar -C ${HADOOP_INSTALL_DIR} -xzf -
 
-HADOOP_DIR="${REL_DIR}/hadoop-${HADOOP_VERSION}"
+HADOOP_DIR="${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}"
 
 echo "Setting your JAVA_HOME in the ${HADOOP_DIR}/conf/hadoop-env.sh"
 sed -i "/^# export JAVA_HOME/aexport JAVA_HOME=${JAVA_HOME}" ${HADOOP_DIR}/conf/hadoop-env.sh
