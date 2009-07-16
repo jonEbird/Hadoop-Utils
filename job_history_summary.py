@@ -134,8 +134,9 @@ for t in range(submitTime, finishTime):
 for map in mapEndTime.keys():
   isFinal = final.has_key(map)
   if mapStartTime.has_key(map):
+    # tally a mark on the time range in which this mapper was running
     for t in range(mapStartTime[map]-submitTime, mapEndTime[map]-submitTime):
-      if final:
+      if isFinal:
         runningMaps[t] += 1
       else:
         waste[t] += 1
@@ -143,6 +144,7 @@ for map in mapEndTime.keys():
 for reduce in reduceEndTime.keys():
   if reduceStartTime.has_key(reduce):
     if final.has_key(reduce):
+      # S-> |shuffling| -> |Sorting| -> |ActualReducing| -> End
       for t in range(reduceStartTime[reduce]-submitTime, reduceShuffleTime[reduce]-submitTime):
         shufflingReduces[t] += 1
       for t in range(reduceShuffleTime[reduce]-submitTime, reduceSortTime[reduce]-submitTime):
