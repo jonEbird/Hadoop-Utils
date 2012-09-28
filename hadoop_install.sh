@@ -13,7 +13,7 @@ HADOOP_INSTALL_DIR=${2:-${REL_DIR}}
 HADOOP_DATA_DIR=${3:-${HADOOP_INSTALL_DIR}/data}
 
 # Do we actually need to download anything?
-if (ls -l $HADOOP_VERSION >- 2>&-); then
+if [ -r $HADOOP_VERSION ]; then
     MEDIA=$HADOOP_VERSION
     HADOOP_VERSION=$(basename $MEDIA | sed 's/^hadoop-\([^-]*\)-.*$/\1/g')
     DOWNLOAD="no"
@@ -143,6 +143,14 @@ done
 echo "Formating a new HDFS filesystem"
 ${HADOOP_DIR}/bin/hadoop namenode -format
 
+# Now create a handy sourcable env file for your Hadoop install
+cd ${HADOOP_DIR}; HADOOP_DIR_FULLPATH=$(pwd); cd ~-
+cat <<EOF > ${HADOOP_DIR}/env
+export HADOOP_VERSION=${HADOOP_VERSION}
+HSTREAM="${HADOOP_DIR_FULLPATH}/bin/hadoop jar ${HADOOP_DIR_FULLPATH}/contrib/streaming/hadoop-streaming-${HADOOP_VERSION}.jar"
+PATH="\$PATH:${HADOOP_DIR_FULLPATH}/bin"
+EOF
+
 cat <<EOF
 If you're lucky, we're all set to go.
 
@@ -151,6 +159,15 @@ To start all of the Hadoop daemons:
    Once you start Hadoop:
      NameNode will be located at - http://localhost:50070/
      JobTracker - http://localhost:50030/
+
+Source the following file environmental file to make your life a bit easier:
+   ${HADOOP_DIR}/env
+You may now issue "hadoop" commands as well as issue a streaming job such as:
+   \$HSTREAM -D mapred.job.name='Example Job Name' \\
+      -input   hdfs_path/logs*   \\
+      -output  apache_referrer   \\
+      -mapper  path/to/mapper.py \\
+      -reducer path/to/reducer.py
 
 To stop the daemons, then run:
    ${HADOOP_DIR}/bin/stop-all.sh
