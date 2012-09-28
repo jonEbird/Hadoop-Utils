@@ -5,13 +5,24 @@ TMP="/tmp/.hadoopinstall$$_"
 
 # Dirty, little hackish script to get Hadoop installed and running...
 # Author: Jon Miller http://jonebird.com/ - jonEbird@gmail.com
-# 
+#
 # See http://hadoop.apache.org/core/docs/r0.18.3/quickstart.html
-# 
-HADOOP_VERSION=${1:-0.18.3}
+#
+HADOOP_VERSION=${1:-1.0.3}   # can be a local tarball or a version number to be pulled down
 HADOOP_INSTALL_DIR=${2:-${REL_DIR}}
+HADOOP_DATA_DIR=${3:-${HADOOP_INSTALL_DIR}/data}
 
-MEDIA="http://mirror.cloudera.com/apache/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz"
+# Do we actually need to download anything?
+if (ls -l $HADOOP_VERSION >- 2>&-); then
+    MEDIA=$HADOOP_VERSION
+    HADOOP_VERSION=$(basename $MEDIA | sed 's/^hadoop-\([^-]*\)-.*$/\1/g')
+    DOWNLOAD="no"
+    echo "Using the local media $HADOOP_VERSION instead of downloading."
+else
+    MEDIA="http://apache.osuosl.org/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}-bin.tar.gz"
+    DOWNLOAD="yes"
+    echo "Will be downloading Hadoop version ${HADOOP_VERSION} from ${MEDIA}"
+fi
 
 #----------------------------------------------------------------------
 # sanity checks...
@@ -60,7 +71,7 @@ else
 fi
 
 #----------------------------------------------------------------------
-# Okay, good to go I think... 
+# Okay, good to go I think...
 
 readlink_r() {
     local symlink="$1"
@@ -74,16 +85,36 @@ readlink_r() {
 }
 JAVA_HOME=$(readlink_r $(which java) | sed 's|/bin/java$||g')
 
-echo "Pulling down media and extracting to ${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}/. Probably a good idea to be patient."
-curl -s $MEDIA | tar -C ${HADOOP_INSTALL_DIR} -xzf -
+# Either pulldown the media or use a local tarball
+if [ "$DOWNLOAD" == "yes" ]; then
+    echo "Pulling down media and extracting to ${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}/. Probably a good idea to be patient."
+    curl -s $MEDIA | tar -C ${HADOOP_INSTALL_DIR} -xzf -
+else
+    echo "Extracting $MEDIA and extracting to ${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}/."
+    cat $MEDIA | tar -C ${HADOOP_INSTALL_DIR} -xzf -
+fi
+
+# Do I need to create the data directory?
+if [ ! -d $HADOOP_DATA_DIR ]; then
+    mkdir -p $HADOOP_DATA_DIR
+fi
+# And make that variable fully qualified
+cd $HADOOP_DATA_DIR
+HADOOP_DATA_DIR=$(pwd)
+cd ~-
 
 HADOOP_DIR="${HADOOP_INSTALL_DIR}/hadoop-${HADOOP_VERSION}"
 
 echo "Setting your JAVA_HOME in the ${HADOOP_DIR}/conf/hadoop-env.sh"
 sed -i "/^# export JAVA_HOME/aexport JAVA_HOME=${JAVA_HOME}" ${HADOOP_DIR}/conf/hadoop-env.sh
 
-echo "Populating your ${HADOOP_DIR}/conf/hadoop-site.xml config with suggested defaults."
-cat <<EOF > ${HADOOP_DIR}/conf/hadoop-site.xml
+echo "Populating your ${HADOOP_DIR}/conf/*site*.xml config with suggested defaults."
+for xmlfile in ${HADOOP_DIR}/conf/*site*.xml; do
+    cp -p ${xmlfile}{,.orig}
+    cat <<EOF > $xmlfile
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
 <configuration>
   <property>
     <name>fs.default.name</name>
@@ -97,8 +128,17 @@ cat <<EOF > ${HADOOP_DIR}/conf/hadoop-site.xml
     <name>dfs.replication</name>
     <value>1</value>
   </property>
+  <property>
+    <name>dfs.name.dir</name>
+    <value>${HADOOP_DATA_DIR}</value>
+  </property>
+  <property>
+    <name>dfs.data.dir</name>
+    <value>${HADOOP_DATA_DIR}</value>
+  </property>
 </configuration>
 EOF
+done
 
 echo "Formating a new HDFS filesystem"
 ${HADOOP_DIR}/bin/hadoop namenode -format
@@ -108,12 +148,15 @@ If you're lucky, we're all set to go.
 
 To start all of the Hadoop daemons:
    ${HADOOP_DIR}/bin/start-all.sh
+   Once you start Hadoop:
+     NameNode will be located at - http://localhost:50070/
+     JobTracker - http://localhost:50030/
 
 To stop the daemons, then run:
-   ${HADOOP_DIR}/bin/stop-all.sh  
+   ${HADOOP_DIR}/bin/stop-all.sh
 
 Finally, you're probably one out of a handful of people to have ran this, so you might need to view:
-http://hadoop.apache.org/core/docs/r${HADOOP_VERSION}/quickstart.html
+http://hadoop.apache.org/core/docs/r${HADOOP_VERSION}/
 
 EOF
 
